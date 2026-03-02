@@ -233,7 +233,7 @@ def pembayaran():
             .back-btn{background:#444;color:white;}
             .order-id{font-size:18px;color:lime;margin:10px 0;}
             .instruksi {color:#ffeb3b; font-size:16px; margin-top:15px; text-align:center;}
-            .download-btn{background:#00ff9d;color:black;margin-top:10px;}
+            .garansi-note {color:#ffeb3b; font-size:14px; margin-top:10px; text-align:center;}
         </style>
     </head>
     <body>
@@ -244,6 +244,7 @@ def pembayaran():
         
         <h3>Detail Pembelian:</h3>
         <p>Garansi: {{ garansi }}</p>
+        <p class="garansi-note">Garansi berlaku setelah admin kirim akun & pembeli konfirmasi diterima.</p>
         <div class="total">Total: Rp {{ total }}</div>
 
         <h2>Pilih Metode Bayar:</h2>
