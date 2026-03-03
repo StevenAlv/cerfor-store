@@ -9,27 +9,14 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY') or "TEMPORARY_KEY_GANTI_SEKARANG"
 app.permanent_session_lifetime = timedelta(minutes=60)
 
-harga_akun = 35000
-
-garansi_list = [
-    {"name": "NO GARANSI", "price": 0},
-    {"name": "30 HARI", "price": 25000},
-    {"name": "60 HARI", "price": 45000},
-    {"name": "120 HARI", "price": 85000},
-    {"name": "360 HARI", "price": 175000},
-    {"name": "UNLIMITED", "price": 300000},
-]
+# Harga fixed per akun
+harga_silver = 35000
+harga_gold = 35000
 
 nomor_dana = "081266617068"
 dana_username = "Noni"
 gambar_qris = "/static/qris.jpg"
 nomor_wa = "6281373318253"
-
-def get_garansi_price(name):
-    for g in garansi_list:
-        if g["name"] == name:
-            return g["price"]
-    return None
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -43,26 +30,25 @@ def home():
         if not user_captcha or int(user_captcha) != correct_answer:
             error = "CAPTCHA SALAH! Coba lagi."
         else:
-            garansi = request.form.get("garansi")
-            harga_garansi_str = request.form.get("harga_garansi")
+            akun_type = request.form.get("akun_type")
             wa_pembeli = request.form.get("wa_pembeli")
 
-            if not garansi or not harga_garansi_str or not wa_pembeli:
-                error = "Lengkapi semua data (garansi + nomor WA)!"
+            if not akun_type or not wa_pembeli:
+                error = "Lengkapi semua data (pilih akun + nomor WA)!"
             else:
-                try:
-                    harga_garansi = int(harga_garansi_str)
-                    if harga_garansi != get_garansi_price(garansi):
-                        error = "Harga garansi tidak valid!"
-                    else:
-                        total = harga_akun + harga_garansi
-                        session['garansi'] = garansi
-                        session['total'] = total
-                        session['wa_pembeli'] = wa_pembeli
-                        session['order_id'] = str(uuid.uuid4())[:8].upper()
-                        return redirect(url_for('pembayaran'))
-                except:
-                    error = "Terjadi kesalahan, coba lagi."
+                if akun_type == "silver":
+                    total = harga_silver
+                elif akun_type == "gold":
+                    total = harga_gold
+                else:
+                    error = "Pilihan akun tidak valid!"
+                    return render_template_string(home_template(), error=error, harga_silver=harga_silver, harga_gold=harga_gold)
+
+                session['akun_type'] = akun_type
+                session['total'] = total
+                session['wa_pembeli'] = wa_pembeli
+                session['order_id'] = str(uuid.uuid4())[:8].upper()
+                return redirect(url_for('pembayaran'))
 
     num1 = random.randint(3, 12)
     num2 = random.randint(3, 12)
@@ -72,7 +58,7 @@ def home():
     return render_template_string("""
     <html>
     <head>
-        <title>CERFOR STORE</title>
+        <title>CERFOR STORE - Pilih Akun</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             body{background:#0f0f0f;color:white;font-family:Arial;padding:20px;}
@@ -83,14 +69,9 @@ def home():
             .total{font-size:24px;color:yellow;margin-top:15px;}
             input[type="text"], input[type="tel"]{padding:10px;width:100%;margin-top:5px;border-radius:8px;border:none;background:#222;color:white;}
             .hidden{display:none;}
-            img.product{width:100%;border-radius:12px;margin:15px 0;box-shadow:0 0 15px cyan;}
-            .testi-btn{background:#4CAF50;color:white;margin-top:30px;padding:15px;border-radius:12px;font-weight:bold;cursor:pointer;width:100%;border:none;}
+            img.akun{width:100%;border-radius:12px;margin:15px 0;box-shadow:0 0 15px cyan;}
+            .akun-option{margin-bottom:30px;text-align:center;}
             .error{color:red; text-align:center; margin:10px 0;}
-            .payment-tabs {display:flex; justify-content:space-around; margin:20px 0;}
-            .tab-btn {padding:12px;background:#333;color:white;border:none;border-radius:8px;cursor:pointer;flex:1;margin:0 5px;transition:all 0.3s;}
-            .tab-btn.active, .tab-btn:hover {background:linear-gradient(45deg, #ff0000, #ffff00, #00ff00); color:black; box-shadow:0 0 15px #ffff00;}
-            .payment-content {display:none; margin-top:15px;}
-            .payment-content.active {display:block;}
             .rgb-btn {
                 background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff, #ff00ff);
                 background-size: 400% 400%;
@@ -108,33 +89,35 @@ def home():
                 50% {background-position: 100% 50%;}
                 100% {background-position: 0% 50%;}
             }
-            .instruksi {color:#ffeb3b; font-size:16px; margin-top:15px; text-align:center;}
         </style>
     </head>
     <body>
     <div class="box">
         <h1>CERFOR STORE</h1>
-        
-        <h3 style="text-align:center; color:lime; margin-bottom:10px;">(DESKRIPSI AKUN CARXSTREET👇👇)</h3>
-        <img class="product" src="/static/akun_premium.jpg" alt="Akun CarX Street Premium">
-
-        <div class="price">Harga Akun: Rp 35.000</div>
+        <h2 style="text-align:center;color:lime;">Pilih Akun yang Mau Dibeli</h2>
 
         {% if error %}
             <p class="error">{{ error }}</p>
         {% endif %}
 
         <form method="post" id="form">
-            <h3>🕑PAKET GARANSI || 👇👇</h3>
-            {% for g in garansi_list %}
-                <input type="radio" name="garansi" value="{{g.name}}" 
-                       data-price="{{g.price}}" required>
-                {{g.name}} || HARGA=TAMBAH {{g.price//1000}}K💵<br>
-            {% endfor %}
+            <div class="akun-option">
+                <h3>Akun Silver</h3>
+                <img class="akun" src="/static/akun_silver.jpg" alt="Akun Silver">
+                <p style="color:#ffeb3b;">Full upgrade, mobil keren, level tinggi</p>
+                <p class="price">Harga: Rp {{ harga_silver }}</p>
+                <button type="submit" name="akun_type" value="silver" class="rgb-btn">Pilih Akun Silver</button>
+            </div>
 
-            <input type="hidden" name="harga_garansi" id="harga_garansi">
+            <div class="akun-option">
+                <h3>Akun Gold</h3>
+                <img class="akun" src="/static/akun_gold.jpg" alt="Akun Gold">
+                <p style="color:#ffeb3b;">VIP premium, semua fitur unlocked, uang banyak</p>
+                <p class="price">Harga: Rp {{ harga_gold }}</p>
+                <button type="submit" name="akun_type" value="gold" class="rgb-btn">Pilih Akun Gold</button>
+            </div>
 
-            <h3 style="margin-top:20px;">Nomor WA Pembeli (wajib):</h3>
+            <h3 style="margin-top:30px;">Nomor WA Pembeli (wajib):</h3>
             <input type="tel" name="wa_pembeli" placeholder="08xxxxxxxxxx" required autocomplete="off">
 
             <h3 style="margin-top:20px;">Verifikasi CAPTCHA:</h3>
@@ -142,39 +125,12 @@ def home():
             <input type="text" name="captcha" placeholder="Jawaban" required autocomplete="off">
 
             <input type="text" name="honeypot" class="hidden" autocomplete="off">
-
-            <div class="total">
-                Total: Rp <span id="total">{{ harga_akun }}</span>
-            </div>
-
-            <button type="submit" class="rgb-btn">LANJUT KE PEMBAYARAN</button>
         </form>
 
         <button class="testi-btn" onclick="mintaTestimoni()">Minta Testimoni ke WA</button>
     </div>
 
     <script>
-    const hargaAkun = {{ harga_akun }};
-    const radios = document.querySelectorAll("input[name='garansi']");
-    const totalText = document.getElementById("total");
-    const hiddenHarga = document.getElementById("harga_garansi");
-
-    function updateTotal(){
-        let selected = document.querySelector("input[name='garansi']:checked");
-        if (selected) {
-            let hargaGaransi = parseInt(selected.getAttribute("data-price"));
-            let total = hargaAkun + hargaGaransi;
-            totalText.innerText = total;
-            hiddenHarga.value = hargaGaransi;
-        } else {
-            totalText.innerText = hargaAkun;
-            hiddenHarga.value = 0;
-        }
-    }
-
-    radios.forEach(r => r.addEventListener("change", updateTotal));
-    updateTotal();
-
     function mintaTestimoni() {
         let pesan = "Halo, saya ingin minta testimoni atau review setelah beli akun. Terima kasih!";
         window.location.href = "https://wa.me/6281373318253?text=" + encodeURIComponent(pesan);
@@ -182,16 +138,16 @@ def home():
     </script>
     </body>
     </html>
-    """, garansi_list=garansi_list, harga_akun=harga_akun, captcha_question=captcha_question)
+    """, harga_silver=harga_silver, harga_gold=harga_gold, captcha_question=captcha_question)
 
 @app.route("/pembayaran")
 def pembayaran():
-    garansi = session.get('garansi')
+    akun_type = session.get('akun_type')
     total = session.get('total')
     order_id = session.get('order_id')
     wa_pembeli = session.get('wa_pembeli')
 
-    if not garansi or not total or not order_id or not wa_pembeli:
+    if not akun_type or not total or not order_id or not wa_pembeli:
         return redirect(url_for('home'))
 
     return render_template_string("""
@@ -206,7 +162,7 @@ def pembayaran():
             h2{color:#00ffff;}
             h3{color:lime;}
             img{width:100%;margin:15px 0;border-radius:12px;}
-            button{width:100%;padding:15px;border:none;border-radius:12px;font-weight:bold;cursor:pointer;margin-top:10px;}
+            button, .toggle-btn{width:100%;padding:15px;border:none;border-radius:12px;font-weight:bold;cursor:pointer;margin-top:10px;}
             .rgb-btn {
                 background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff, #ff00ff);
                 background-size: 400% 400%;
@@ -233,7 +189,8 @@ def pembayaran():
             .back-btn{background:#444;color:white;}
             .order-id{font-size:18px;color:lime;margin:10px 0;}
             .instruksi {color:#ffeb3b; font-size:16px; margin-top:15px; text-align:center;}
-            .garansi-note {color:#ffeb3b; font-size:14px; margin-top:10px; text-align:center;}
+            .dana-info, .qris-info {display:none; margin-top:10px; padding:10px; background:#222; border-radius:8px;}
+            .toggle-btn {background:#00ff9d; color:black;}
         </style>
     </head>
     <body>
@@ -243,8 +200,7 @@ def pembayaran():
         <p><strong>WA Pembeli:</strong> {{ wa_pembeli }}</p>
         
         <h3>Detail Pembelian:</h3>
-        <p>Garansi: {{ garansi }}</p>
-        <p class="garansi-note">Garansi berlaku setelah admin kirim akun & pembeli konfirmasi diterima.</p>
+        <p>Akun: {{ akun_type.capitalize() }}</p>
         <div class="total">Total: Rp {{ total }}</div>
 
         <h2>Pilih Metode Bayar:</h2>
@@ -255,23 +211,29 @@ def pembayaran():
 
         <div id="dana" class="payment-content active">
             <h3>DANA</h3>
-            <p>Nomor: <strong>{{ nomor_dana }}</strong><br>
-               Nama: <strong>{{ dana_username }}</strong></p>
+            <button class="toggle-btn" onclick="toggleDana('dana-info')">Tampilkan Nomor DANA</button>
+            <div id="dana-info" class="dana-info">
+                <p>Nomor: <strong>{{ nomor_dana }}</strong></p>
+                <p>Nama: <strong>{{ dana_username }}</strong></p>
+            </div>
         </div>
 
         <div id="qris" class="payment-content">
             <h3>All Payment / QRIS</h3>
-            <p style="color:#ffeb3b; font-weight:bold;">Screenshot QRIS di bawah ini</p>
-            <p>Scan dengan aplikasi payment kamu (DANA, GoPay, OVO, ShopeePay, dll)</p>
-            <img src="{{ gambar_qris }}" alt="QRIS Pembayaran">
-            <a href="/static/qris.jpg" download="QRIS-CERFOR-STORE.jpg" class="rgb-btn download-btn">📥 Download Gambar QRIS</a>
+            <p style="color:#ffeb3b; font-weight:bold;">Scan QRIS dengan aplikasi payment kamu</p>
+            <button class="toggle-btn" onclick="toggleDana('qris-info')">Tampilkan QRIS</button>
+            <div id="qris-info" class="qris-info">
+                <p>Screenshot QRIS di bawah ini</p>
+                <img src="{{ gambar_qris }}" alt="QRIS Pembayaran">
+                <a href="/static/qris.jpg" download="QRIS-CERFOR-STORE.jpg" class="rgb-btn download-btn">📥 Download Gambar QRIS</a>
+            </div>
         </div>
 
         <p style="margin-top:20px;">Setelah transfer, klik tombol di bawah untuk konfirmasi via WhatsApp. Kirim foto bukti + Order ID!</p>
 
         <button onclick="konfirmasiWA()" class="rgb-btn">SUDAH BAYAR (Konfirmasi WA)</button>
 
-        <p class="instruksi">Kirim foto bukti TF + Order ID ke WA ini. Admin akan cek & kirim akun dalam 5-15 menit.</p>
+        <p class="instruksi">Kirim foto bukti TF + Order ID ke WA ini. Admin akan cek & kirim akun dalam 1 menit. Tergantung Admin online/offline nya</p>
 
         <a href="{{ url_for('home') }}"><button class="back-btn">KEMBALI KE PILIHAN</button></a>
     </div>
@@ -284,14 +246,23 @@ def pembayaran():
         event.target.classList.add('active');
     }
 
+    function toggleDana(infoId) {
+        var info = document.getElementById(infoId);
+        if (info.style.display === "none" || info.style.display === "") {
+            info.style.display = "block";
+        } else {
+            info.style.display = "none";
+        }
+    }
+
     function konfirmasiWA() {
-        let pesan = "Order ID: {{ order_id }}\\nWA Pembeli: {{ wa_pembeli }}\\nGaransi: {{ garansi }}\\nTotal: Rp {{ total }}\\n\\nSaya sudah bayar. Ini bukti transfer (attach foto ya).";
+        let pesan = "Order ID: {{ order_id }}\\nWA Pembeli: {{ wa_pembeli }}\\nAkun: {{ akun_type }}\\nTotal: Rp {{ total }}\\n\\nSaya sudah bayar. Ini bukti transfer (attach foto ya).";
         window.location.href = "https://wa.me/{{ nomor_wa }}?text=" + encodeURIComponent(pesan);
     }
     </script>
     </body>
     </html>
-    """, garansi=garansi, total=total, order_id=order_id, wa_pembeli=wa_pembeli,
+    """, akun_type=akun_type, total=total, order_id=order_id, wa_pembeli=wa_pembeli,
        nomor_dana=nomor_dana, dana_username=dana_username,
        gambar_qris=gambar_qris, nomor_wa=nomor_wa)
 
