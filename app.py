@@ -6,44 +6,40 @@ import uuid
 
 app = Flask(__name__)
 
-app.secret_key = os.environ.get('FLASK_SECRET_KEY') or "TEMPORARY_KEY_GANTI_SEKARANG"
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
 app.permanent_session_lifetime = timedelta(minutes=60)
 
-# Harga fixed per akun
-harga_silver = 35000
-harga_gold = 35000
+harga_silver = 50000
+harga_gold = 80000
 
 nomor_dana = "081266617068"
 dana_username = "Noni"
 gambar_qris = "/static/qris.jpg"
-nomor_wa = "6281373318253"
+nomor_wa = "6281373318253"  # GANTI DENGAN NOMOR WA KAMU
 
 @app.route("/", methods=["GET", "POST"])
 def home():
     error = None
+
     if request.method == "POST":
         if request.form.get("honeypot"):
             return "Spam detected! ❌"
 
         user_captcha = request.form.get("captcha")
         correct_answer = session.get("captcha_answer")
-        if not user_captcha or int(user_captcha) != correct_answer:
+
+        if not user_captcha or not user_captcha.isdigit() or int(user_captcha) != correct_answer:
             error = "CAPTCHA SALAH! Coba lagi."
         else:
-            akun_type = request.form.get("akun_type")
+            akun_type = request.form.get("akun_type_hidden")
             wa_pembeli = request.form.get("wa_pembeli")
 
             if not akun_type or not wa_pembeli:
                 error = "Lengkapi semua data (pilih akun + nomor WA)!"
+            elif akun_type not in ["silver", "gold"]:
+                error = "Pilihan akun tidak valid!"
             else:
-                if akun_type == "silver":
-                    total = harga_silver
-                elif akun_type == "gold":
-                    total = harga_gold
-                else:
-                    error = "Pilihan akun tidak valid!"
-                    return render_template_string(home_template(), error=error, harga_silver=harga_silver, harga_gold=harga_gold)
-
+                total = harga_silver if akun_type == "silver" else harga_gold
                 session['akun_type'] = akun_type
                 session['total'] = total
                 session['wa_pembeli'] = wa_pembeli
@@ -58,87 +54,143 @@ def home():
     return render_template_string("""
     <html>
     <head>
-        <title>CERFOR STORE - Pilih Akun</title>
+        <title>CERFOR STORE - Akun CarX Street</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-            body{background:#0f0f0f;color:white;font-family:Arial;padding:20px;}
-            .box{background:#1a1a1a;padding:25px;border-radius:20px;box-shadow:0 0 25px cyan;max-width:500px;margin:auto;}
-            h1{text-align:center;color:cyan;}
-            button{width:100%;padding:15px;border:none;border-radius:12px;font-weight:bold;cursor:pointer;margin-top:15px;}
-            .price{font-size:20px;color:lime;margin-top:10px;}
-            .total{font-size:24px;color:yellow;margin-top:15px;}
-            input[type="text"], input[type="tel"]{padding:10px;width:100%;margin-top:5px;border-radius:8px;border:none;background:#222;color:white;}
-            .hidden{display:none;}
-            img.akun{width:100%;border-radius:12px;margin:15px 0;box-shadow:0 0 15px cyan;}
-            .akun-option{margin-bottom:30px;text-align:center;}
-            .error{color:red; text-align:center; margin:10px 0;}
-            .rgb-btn {
+            body { background:#0f0f0f; color:white; font-family:Arial, sans-serif; padding:20px; margin:0; }
+            .box { background:#1a1a1a; padding:30px; border-radius:16px; box-shadow:0 0 30px rgba(0,255,255,0.3); max-width:520px; margin:auto; }
+            h1 { text-align:center; color:cyan; margin-bottom:10px; }
+            h2 { text-align:center; color:lime; margin:20px 0 30px; }
+            .akun-section, .toggle-content { display:none; margin-top:30px; }
+            img.akun { width:100%; max-width:380px; border-radius:12px; margin:15px auto; display:block; box-shadow:0 0 20px rgba(0,255,255,0.4); }
+            .price { font-size:22px; color:lime; font-weight:bold; margin:12px 0; }
+            button { width:100%; padding:14px; border:none; border-radius:10px; font-weight:bold; cursor:pointer; margin:10px 0; font-size:16px; }
+            .rgb-btn { 
                 background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #8b00ff, #ff00ff);
-                background-size: 400% 400%;
-                animation: rgbGradient 8s ease infinite;
-                color: white;
-                box-shadow: 0 0 20px rgba(255,255,255,0.5);
-                transition: all 0.3s;
+                background-size: 400% 400%; animation: rgbGradient 10s ease infinite; color:white; box-shadow:0 0 20px rgba(255,255,255,0.4);
             }
-            .rgb-btn:hover {
-                box-shadow: 0 0 30px rgba(255,255,255,0.8);
-                transform: scale(1.05);
-            }
-            @keyframes rgbGradient {
-                0% {background-position: 0% 50%;}
-                50% {background-position: 100% 50%;}
-                100% {background-position: 0% 50%;}
-            }
+            .rgb-btn.selected { background:#00ff9d !important; color:black !important; animation:none; }
+            .rgb-btn:hover { transform: scale(1.04); box-shadow:0 0 30px rgba(255,255,255,0.7); }
+            @keyframes rgbGradient { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+            input[type="text"], input[type="tel"] { padding:12px; width:100%; margin:8px 0 16px; border-radius:8px; border:none; background:#222; color:white; font-size:16px; }
+            .error { color:#ff5555; text-align:center; font-weight:bold; margin:15px 0; }
+            .toggle-btn { background:#00cc99; color:black; font-weight:bold; margin:10px 0; }
+            .bayar-btn { background:#ff4757; color:white; font-size:18px; margin-top:25px; }
+            .wa-btn { background:#25D366; color:white; font-size:17px; margin-top:20px; }
+            .hidden { display:none; }
+            .garansi-text { text-align:center; color:#00ff9d; font-size:13px; margin-top:25px; font-weight:bold; }
+            .chat-bubble { background:#222; padding:12px; border-radius:10px; margin:15px 0; font-size:14px; line-height:1.5; }
+            .chat-buyer { color:#ffeb3b; font-weight:bold; }
+            .chat-seller { color:#00ff9d; font-weight:bold; }
         </style>
     </head>
     <body>
     <div class="box">
         <h1>CERFOR STORE</h1>
-        <h2 style="text-align:center;color:lime;">Pilih Akun yang Mau Dibeli</h2>
+        <h2>Pilih Akun CarX Street yang Mau Dibeli</h2>
 
         {% if error %}
             <p class="error">{{ error }}</p>
         {% endif %}
 
-        <form method="post" id="form">
+        <button class="toggle-btn" onclick="toggleAkun()">Lihat Akun Tersedia</button>
+
+        <div id="akun-section" class="akun-section">
             <div class="akun-option">
                 <h3>Akun Silver</h3>
                 <img class="akun" src="/static/akun_silver.jpg" alt="Akun Silver">
-                <p style="color:#ffeb3b;">Full upgrade, mobil keren, level tinggi</p>
-                <p class="price">Harga: Rp {{ harga_silver }}</p>
-                <button type="submit" name="akun_type" value="silver" class="rgb-btn">Pilih Akun Silver</button>
+                <p class="price">Rp {{ harga_silver | format_number }}</p>
+                <button type="button" onclick="pilihAkun('silver')" class="rgb-btn {{ 'selected' if selected_akun == 'silver' else '' }}" id="btn-silver">{% if selected_akun == 'silver' %}Dipilih{% else %}Pilih Akun Silver{% endif %}</button>
             </div>
 
             <div class="akun-option">
                 <h3>Akun Gold</h3>
                 <img class="akun" src="/static/akun_gold.jpg" alt="Akun Gold">
-                <p style="color:#ffeb3b;">VIP premium, semua fitur unlocked, uang banyak</p>
-                <p class="price">Harga: Rp {{ harga_gold }}</p>
-                <button type="submit" name="akun_type" value="gold" class="rgb-btn">Pilih Akun Gold</button>
+                <p class="price">Rp {{ harga_gold | format_number }}</p>
+                <button type="button" onclick="pilihAkun('gold')" class="rgb-btn {{ 'selected' if selected_akun == 'gold' else '' }}" id="btn-gold">{% if selected_akun == 'gold' %}Dipilih{% else %}Pilih Akun Gold{% endif %}</button>
             </div>
+        </div>
 
-            <h3 style="margin-top:30px;">Nomor WA Pembeli (wajib):</h3>
+        <form method="post" id="bayar-form">
+            <input type="hidden" name="akun_type_hidden" id="akun_type_hidden" value="">
+            <input type="hidden" name="honeypot" value="">
+
+            <h3 style="margin-top:30px;">Nomor WA Pembeli (wajib)</h3>
             <input type="tel" name="wa_pembeli" placeholder="08xxxxxxxxxx" required autocomplete="off">
 
-            <h3 style="margin-top:20px;">Verifikasi CAPTCHA:</h3>
-            <p style="margin:8px 0;">{{ captcha_question }}</p>
+            <h3 style="margin-top:25px;">Verifikasi CAPTCHA</h3>
+            <p style="margin:10px 0; font-size:17px;">{{ captcha_question }}</p>
             <input type="text" name="captcha" placeholder="Jawaban" required autocomplete="off">
 
-            <input type="text" name="honeypot" class="hidden" autocomplete="off">
+            <button type="submit" class="bayar-btn">Bayar Sekarang</button>
         </form>
 
-        <button class="testi-btn" onclick="mintaTestimoni()">Minta Testimoni ke WA</button>
+        <div class="chat-bubble" style="margin-top:20px;">
+            <p><span class="chat-buyer">🗣️: BG, GW TAKUT DITIPU</span></p>
+            <p><span class="chat-seller">👤: AMAN!!, DISINI SUDAH BANYAK TESTI ATAU UDAH BANYAK YG UDH BELI JUGA.</span></p>
+        </div>
+
+        <button class="toggle-btn" onclick="toggleContent('testi-content')">Tampilkan Testimoni</button>
+        <div id="testi-content" class="toggle-content">
+            <img src="/static/testimoni.jpg" alt="Testimoni Pembeli" style="width:75%; border-radius:10px; margin-bottom:10px;">
+            <p style="color:#aaa; font-size:20px;">Sebagian screenshoot testimoni dari pembeli sebelumnya<br>kalau mau testimoni yang lebih bisa chat no wa admin di bawah</p>
+        </div>
+
+        <button onclick="orderWA()" class="wa-btn">Order via WhatsApp</button>
+
+        <p class="garansi-text">
+            ‼️ DISINI DI SEDIAKAN FULL GARANSI JIKA AKUN TERKENA BANNED
+        </p>
+
+        <p style="text-align:center; color:#888; margin-top:15px; font-size:13px;">
+            Pilih akun → isi WA & CAPTCHA → tekan Bayar Sekarang
+        </p>
     </div>
 
     <script>
-    function mintaTestimoni() {
-        let pesan = "Halo, saya ingin minta testimoni atau review setelah beli akun. Terima kasih!";
-        window.location.href = "https://wa.me/6281373318253?text=" + encodeURIComponent(pesan);
+    let selectedAkun = "";
+
+    function toggleAkun() {
+        var el = document.getElementById('akun-section');
+        el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function toggleContent(id) {
+        var el = document.getElementById(id);
+        el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+    }
+
+    function pilihAkun(tipe) {
+        selectedAkun = tipe;
+        document.getElementById('akun_type_hidden').value = tipe;
+
+        document.getElementById('btn-silver').classList.remove('selected');
+        document.getElementById('btn-gold').classList.remove('selected');
+        document.getElementById('btn-silver').innerText = 'Pilih Akun Silver';
+        document.getElementById('btn-gold').innerText = 'Pilih Akun Gold';
+
+        if (tipe === 'silver') {
+            document.getElementById('btn-silver').classList.add('selected');
+            document.getElementById('btn-silver').innerText = 'Dipilih';
+        } else if (tipe === 'gold') {
+            document.getElementById('btn-gold').classList.add('selected');
+            document.getElementById('btn-gold').innerText = 'Dipilih';
+        }
+    }
+
+    function orderWA() {
+        let pesan = "Mau order akun carxstreet bang";
+        window.location.href = "https://wa.me/{{ nomor_wa }}?text=" + encodeURIComponent(pesan);
     }
     </script>
     </body>
     </html>
-    """, harga_silver=harga_silver, harga_gold=harga_gold, captcha_question=captcha_question)
+    """, 
+    harga_silver=harga_silver, 
+    harga_gold=harga_gold, 
+    captcha_question=captcha_question,
+    nomor_wa=nomor_wa
+    )
 
 @app.route("/pembayaran")
 def pembayaran():
@@ -265,6 +317,8 @@ def pembayaran():
     """, akun_type=akun_type, total=total, order_id=order_id, wa_pembeli=wa_pembeli,
        nomor_dana=nomor_dana, dana_username=dana_username,
        gambar_qris=gambar_qris, nomor_wa=nomor_wa)
+
+app.jinja_env.filters['format_number'] = lambda value: "{:,}".format(value).replace(",", ".")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
